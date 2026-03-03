@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Fab.com Free Item Claimer
+// @name         One-Click Fab.com Free Item Claimer
 // @namespace    https://github.com/joex92/Fab.com-Free-Item-Claimer
 // @version      3.1
 // @description  Automates claiming free products on Fab.com with auto-scrolling and batch processing.
