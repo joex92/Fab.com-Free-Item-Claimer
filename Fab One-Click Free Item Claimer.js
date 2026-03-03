@@ -9,9 +9,6 @@
 // @grant        none
 // ==/UserScript==
 
-// We wrap the entire script in an Immediately Invoked Function Expression (IIFE).
-// This creates a private scope, preventing our variables from colliding with 
-// the website's native code and keeping the execution secure.
 (function() {
   'use strict';
 
