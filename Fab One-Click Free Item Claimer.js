@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fab.com Free Item Claimer
-// @namespace    http://tampermonkey.net/
-// @version      3.0
+// @namespace    https://github.com/joex92/Fab.com-Free-Item-Claimer
+// @version      3.1
 // @description  Automates claiming free products on Fab.com with auto-scrolling and batch processing.
 // @author       JoeX92
 // @match        https://www.fab.com/search*
