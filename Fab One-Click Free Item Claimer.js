@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One-Click Fab.com Free Item Claimer
 // @namespace    https://github.com/joex92/Fab.com-Free-Item-Claimer
-// @version      3.1
+// @version      4.0
 // @description  Automates claiming free products on Fab.com with auto-scrolling and batch processing.
 // @author       JoeX92 & Gemini AI Pro
 // @match        https://www.fab.com/search*
@@ -18,7 +18,42 @@
   let shouldStop = false;
   let autoScrollEnabled = false;
 
-  // --- 2. Smart Sleep ---
+  // --- 2. UI Helpers (Logging & ETA) ---
+  function uiLog(message) {
+    console.log(message); // Keep it in the real console just in case
+    const logBox = document.getElementById('fab-automation-log');
+    if (logBox) {
+      const msgLine = document.createElement('div');
+      msgLine.innerText = `> ${message}`;
+      msgLine.style.marginBottom = '4px';
+      logBox.appendChild(msgLine);
+      
+      // Keep only the last 4 messages so the box doesn't grow infinitely
+      while (logBox.children.length > 4) {
+        logBox.removeChild(logBox.firstChild);
+      }
+      logBox.scrollTop = logBox.scrollHeight; // Auto-scroll to bottom
+    }
+  }
+
+  function updateETA(itemsLeft) {
+    const etaText = document.getElementById('fab-automation-eta');
+    if (!etaText) return;
+    
+    if (itemsLeft === 0) {
+      etaText.innerText = "ETA: Calculating...";
+      return;
+    }
+
+    // Our script sleeps for a max of ~4 seconds per item (1.5 + 0.5 + 2.0)
+    const estimatedSeconds = itemsLeft * 4; 
+    const mins = Math.floor(estimatedSeconds / 60);
+    const secs = estimatedSeconds % 60;
+    
+    etaText.innerText = `ETA: ~${mins}m ${secs < 10 ? '0' : ''}${secs}s (${itemsLeft} items left)`;
+  }
+
+  // --- 3. Smart Sleep ---
   async function smartSleep(ms) {
     let elapsed = 0;
     while (elapsed < ms) {
@@ -28,7 +63,7 @@
     }
   }
 
-  // --- 3. Robust DOM Scraper ---
+  // --- 4. Robust DOM Scraper ---
   function getUnprocessedFreeItems() {
     const cartBtns = document.querySelectorAll('button[aria-label="Add listing to cart"]:not([data-fab-processed="true"])');
     const freeItems = [];
@@ -58,14 +93,15 @@
     return freeItems;
   }
 
-  // --- 4. Batch Automation Logic ---
+  // --- 5. Batch Automation Logic ---
   async function startAutomation() {
     isRunning = true;
     shouldStop = false;
     isPaused = false;
     
     document.getElementById('fab-automation-controls').style.display = 'flex';
-    console.log("🚀 Batch Automation Started!");
+    document.getElementById('fab-automation-log').innerHTML = ''; // Clear previous logs
+    uiLog("🚀 Automation Started!");
 
     try {
       while (true) {
@@ -74,10 +110,13 @@
         const batch = getUnprocessedFreeItems();
         
         if (batch.length > 0) {
-          console.log(`Found a batch of ${batch.length} new free items. Processing...`);
+          uiLog(`Found ${batch.length} new free items.`);
           
           for (let i = 0; i < batch.length; i++) {
             if (shouldStop) throw new Error("Automation Stopped by User");
+            
+            updateETA(batch.length - i);
+            uiLog(`Processing item ${i + 1} of ${batch.length}...`);
             
             const { button } = batch[i];
             button.setAttribute('data-fab-processed', 'true');
@@ -108,7 +147,7 @@
 
               if (addToLibraryBtn && !addToLibraryBtn.disabled) {
                 addToLibraryBtn.click();
-                console.log(`  -> Item claimed!`);
+                uiLog(`Successfully claimed!`);
               } else {
                 document.querySelector('button[aria-label="Close"]')?.click();
               }
@@ -119,8 +158,9 @@
             await smartSleep(2000); 
           }
         } else {
+          updateETA(0);
           if (autoScrollEnabled) {
-            console.log("Batch finished. Scrolling to find more items...");
+            uiLog("Scrolling to load more items...");
             let oldHeight = document.body.scrollHeight;
             window.scrollTo(0, document.body.scrollHeight);
             
@@ -128,32 +168,41 @@
             
             let newHeight = document.body.scrollHeight;
             if (newHeight === oldHeight) {
-              console.log("Reached the absolute bottom of the page. No more items to load.");
+              uiLog("Reached the absolute bottom.");
               break; 
             }
           } else {
-            console.log("All visible items processed. Auto-scroll is OFF, so we are done here.");
+            uiLog("Visible items processed. Auto-scroll OFF.");
             break; 
           }
         }
       }
-      console.log("🎉 Finished processing all available items!");
+      uiLog("🎉 Finished processing!");
 
     } catch (error) {
-      console.log(`🛑 ${error.message || error}`);
+      uiLog(`🛑 ${error.message || error}`);
       document.querySelector('button[aria-label="Close"]')?.click();
     } finally {
       isRunning = false;
-      document.getElementById('fab-automation-controls').style.display = 'none';
+      // We don't hide the controls immediately anymore so you can read the final message.
+      // Instead, we change the Stop button to "Close Panel"
+      const stopBtn = document.getElementById('fab-stop-btn');
+      if (stopBtn) {
+        stopBtn.innerHTML = '<span class="fabkit-Button-label">Close Panel</span>';
+        stopBtn.onclick = () => {
+          document.getElementById('fab-automation-controls').style.display = 'none';
+          stopBtn.innerHTML = '<span class="fabkit-Button-label">Stop</span>'; // Reset for next time
+        };
+      }
     }
   }
 
-  // --- 5. UI Injection ---
+  // --- 6. UI Injection ---
   function createAutomationUI() {
     if (document.getElementById('fab-automation-controls')) return;
 
     const anchorElement = document.querySelector('li[data-name="search.widgets.style"]');
-    if (!anchorElement) return; // Fails silently if the SPA hasn't rendered this yet
+    if (!anchorElement) return; 
 
     const toolbar = anchorElement.closest('ul').parentElement;
 
@@ -175,41 +224,70 @@
     };
     toolbar.appendChild(claimBtn);
 
+    // --- Floating Dashboard ---
     const floatingBox = document.createElement('div');
     floatingBox.id = 'fab-automation-controls';
     floatingBox.style.cssText = `
       position: fixed; bottom: 20px; right: 20px; z-index: 999999; 
-      display: none; gap: 10px; padding: 12px; border-radius: 8px;
+      display: none; flex-direction: column; gap: 10px; padding: 16px; 
+      border-radius: 12px; width: 320px;
       background: var(--fabkit-color-surface-elevated, #1a1a1a); 
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5); border: 1px solid #333;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.8); border: 1px solid #444;
+      font-family: ui-sans-serif, system-ui, sans-serif;
     `;
+
+    // 1. ETA Display
+    const etaText = document.createElement('div');
+    etaText.id = 'fab-automation-eta';
+    etaText.style.cssText = 'color: #a0a0a0; font-size: 13px; font-weight: 600;';
+    etaText.innerText = 'ETA: Calculating...';
+    floatingBox.appendChild(etaText);
+
+    // 2. Terminal/Log Box
+    const logBox = document.createElement('div');
+    logBox.id = 'fab-automation-log';
+    logBox.style.cssText = `
+      background: #000; color: #4ade80; padding: 8px 12px; border-radius: 6px;
+      font-family: monospace; font-size: 12px; height: 75px; 
+      overflow-y: hidden; border: 1px solid #333;
+    `;
+    floatingBox.appendChild(logBox);
+
+    // 3. Buttons Row
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display: flex; gap: 8px; justify-content: space-between; margin-top: 4px;';
 
     const pauseBtn = document.createElement('button');
     pauseBtn.className = 'fabkit-Button-root fabkit-Button--md fabkit-Button--menu';
+    pauseBtn.style.flex = '1';
     pauseBtn.innerHTML = '<span class="fabkit-Button-label">Pause</span>';
     pauseBtn.onclick = () => {
+      if (!isRunning) return; // Prevent pausing if it's already finished
       isPaused = !isPaused;
       pauseBtn.querySelector('span').innerText = isPaused ? 'Resume' : 'Pause';
       pauseBtn.style.color = isPaused ? '#ffb300' : ''; 
+      if (isPaused) uiLog("⏸ Paused by user.");
+      else uiLog("▶ Resumed...");
     };
 
     const stopBtn = document.createElement('button');
+    stopBtn.id = 'fab-stop-btn';
     stopBtn.className = 'fabkit-Button-root fabkit-Button--md fabkit-Button--primary';
-    stopBtn.style.backgroundColor = '#d32f2f'; 
-    stopBtn.style.borderColor = '#d32f2f';
+    stopBtn.style.cssText = 'flex: 1; background-color: #d32f2f; border-color: #d32f2f;';
     stopBtn.innerHTML = '<span class="fabkit-Button-label">Stop</span>';
     stopBtn.onclick = () => {
       shouldStop = true;
       isPaused = false; 
     };
 
-    floatingBox.appendChild(pauseBtn);
-    floatingBox.appendChild(stopBtn);
+    btnRow.appendChild(pauseBtn);
+    btnRow.appendChild(stopBtn);
+    floatingBox.appendChild(btnRow);
+
     document.body.appendChild(floatingBox);
   }
 
-  // --- 6. Initialization ---
-  // Poll every 2 seconds to handle dynamic SPA page loads
+  // --- 7. Initialization ---
   setInterval(createAutomationUI, 2000);
 
 })();
