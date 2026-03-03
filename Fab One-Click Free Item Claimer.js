@@ -3,7 +3,7 @@
 // @namespace    https://github.com/joex92/Fab.com-Free-Item-Claimer
 // @version      3.1
 // @description  Automates claiming free products on Fab.com with auto-scrolling and batch processing.
-// @author       JoeX92
+// @author       JoeX92 & Gemini AI
 // @match        https://www.fab.com/search*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=fab.com
 // @grant        none
